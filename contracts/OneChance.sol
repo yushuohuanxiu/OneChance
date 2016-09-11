@@ -99,7 +99,8 @@ contract OneChance {
     }
     
     // 商品列表
-    Goods[] public goodsArr;
+    mapping (uint => Goods) public goodsMap;
+    uint public topGoodsIndex;
     
     modifier onlySponsor() {
         if (msg.sender != sponsor) throw;
@@ -123,19 +124,17 @@ contract OneChance {
     }
    
     // 发布奖品,只有主办方可以调用
-    function postGoods(string _name, uint _amt, string _description) onlySponsor {
-        Goods memory goods;
-        goods.name = _name;
-        goods.amt = _amt;
-        goods.description = _description;
-        goodsArr.push(goods);
+    function postGoods(string _name, uint _amt, string _description) onlySponsor returns (bool) {
+        topGoodsIndex += 1;
+        goodsMap[topGoodsIndex] = Goods({name:_name, amt:_amt, description:_description, consumerArr: new address[](_amt), ciphertextArr: new bytes32[](_amt), plaintextArr: new uint[](_amt), winner:0});
         // 通知主办方发布成功
-        PostGoods(msg.sender, _name, _amt, _description, goodsArr.length-1);
+        PostGoods(msg.sender, _name, _amt, _description, topGoodsIndex);
+        return true;
     }
    
     // 购买 Chance
-    function buyChance(uint _goodsId, bytes32[] _ciphertextArr) {
-        if (goodsArr[_goodsId].consumerArr.length + _ciphertextArr.length > goodsArr[_goodsId].amt) throw;
+    function buyChance(uint _goodsId, bytes32[] _ciphertextArr) returns (bool) {
+        if (goodsMap[_goodsId].consumerArr.length + _ciphertextArr.length > goodsMap[_goodsId].amt) throw;
         for (uint i=0; i<_ciphertextArr.length; i++) {
             if (sha256(0) == _ciphertextArr[1]) throw;
         }
@@ -145,70 +144,67 @@ contract OneChance {
         
         // 记录商品的购买用户
         for (i=0; i<_ciphertextArr.length; i++) {
-            goodsArr[_goodsId].consumerArr.push(msg.sender);
-            goodsArr[_goodsId].ciphertextArr.push(_ciphertextArr[i]);
+            goodsMap[_goodsId].consumerArr.push(msg.sender);
+            goodsMap[_goodsId].ciphertextArr.push(_ciphertextArr[i]);
         }
         
         // 通知用户购买成功
         BuyChance(msg.sender, _goodsId, _ciphertextArr.length);
         // 如果商品 Chance 已售罄，通知购买用户提交原始随机数以生成中奖用户
-        if (goodsArr[_goodsId].consumerArr.length == goodsArr[_goodsId].amt) {
+        if (goodsMap[_goodsId].consumerArr.length == goodsMap[_goodsId].amt) {
             notify(_goodsId);
         }
+        return true;
     }
     
     // 通知用户提交原始随机数
     function notify(uint _goodsId) private {
-        for (uint i=0; i<goodsArr[_goodsId].consumerArr.length; i++) {
-            NotifySubmitPlaintext(goodsArr[_goodsId].consumerArr[i], _goodsId, i, goodsArr[_goodsId].ciphertextArr[i]);
+        for (uint i=0; i<goodsMap[_goodsId].consumerArr.length; i++) {
+            NotifySubmitPlaintext(goodsMap[_goodsId].consumerArr[i], _goodsId, i, goodsMap[_goodsId].ciphertextArr[i]);
         }
     }
     
     // 提交原始随机数,随机数应在 1-amt 中取值，避免超过 uint 表示范围
     function submitPlaintext(uint _goodsId, uint _userId, uint _plaintext) {
-        if (_plaintext > goodsArr[_goodsId].amt) throw;
-        if (goodsArr[_goodsId].plaintextArr[_userId] != 0) {
+        if (_plaintext > goodsMap[_goodsId].amt) throw;
+        if (goodsMap[_goodsId].plaintextArr[_userId] != 0) {
             SubmitPlaintext(msg.sender, _goodsId, _userId);
             throw;
         }
-        if (sha256(_plaintext) != goodsArr[_goodsId].ciphertextArr[_userId]) throw;
+        if (sha256(_plaintext) != goodsMap[_goodsId].ciphertextArr[_userId]) throw;
         
-        goodsArr[_goodsId].plaintextArr[_userId] = _plaintext;
+        goodsMap[_goodsId].plaintextArr[_userId] = _plaintext;
         SubmitPlaintext(msg.sender, _goodsId, _userId);
         
         uint winner;
-        for (uint i=0; i<goodsArr[_goodsId].amt; i++) {
-            if (goodsArr[_goodsId].plaintextArr[i] == 0) {
+        for (uint i=0; i<goodsMap[_goodsId].amt; i++) {
+            if (goodsMap[_goodsId].plaintextArr[i] == 0) {
                 return;
             } else {
-                winner += goodsArr[_goodsId].plaintextArr[i];
+                winner += goodsMap[_goodsId].plaintextArr[i];
             }
         }
         
         // 计算中奖用户
-        goodsArr[_goodsId].winner = winner%goodsArr[_goodsId].amt;
+        goodsMap[_goodsId].winner = winner % goodsMap[_goodsId].amt;
         
     }
     
-    function getTopGoodsIndex() returns (uint) {
-        return goodsArr.length;
-    }
-    
     function getGoods(uint _index) returns (string name, uint amt, string description, uint winner, address[] consumerArr, bytes32[] ciphertextArr, uint[] plaintextArr) {
-        name = goodsArr[_index].name;
-        amt = goodsArr[_index].amt;
-        description = goodsArr[_index].description;
-        winner = goodsArr[_index].winner;
-        consumerArr = goodsArr[_index].consumerArr;
-        ciphertextArr = goodsArr[_index].ciphertextArr;
-        plaintextArr = goodsArr[_index].plaintextArr;
+        name = goodsMap[_index].name;
+        amt = goodsMap[_index].amt;
+        description = goodsMap[_index].description;
+        winner = goodsMap[_index].winner;
+        consumerArr = goodsMap[_index].consumerArr;
+        ciphertextArr = goodsMap[_index].ciphertextArr;
+        plaintextArr = goodsMap[_index].plaintextArr;
     }
     
     function getGoodsInfo(uint _index) returns (string name, uint amt, string description, uint alreadySale, uint winner) {
-        name = goodsArr[_index].name;
-        amt = goodsArr[_index].amt;
-        description = goodsArr[_index].description;
-        alreadySale = goodsArr[_index].amt - goodsArr[_index].consumerArr.length;
-        winner = goodsArr[_index].winner;
+        name = goodsMap[_index].name;
+        amt = goodsMap[_index].amt;
+        description = goodsMap[_index].description;
+        alreadySale = goodsMap[_index].amt - goodsMap[_index].consumerArr.length;
+        winner = goodsMap[_index].winner;
     }
 }
