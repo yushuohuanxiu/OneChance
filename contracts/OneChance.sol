@@ -107,10 +107,10 @@ contract OneChance {
         _;
     }
     
-    event PostGoods(address indexed sponsor, string name, uint amt, string description, uint goodsId);
-	event BuyChance(address indexed consumer, uint goodsId, uint quantity);
+    event PostGoods(address indexed sponsor, string name, uint amt, string description, uint goodsId); // 商品发布成功通知
+	event BuyChance(address indexed consumer, uint goodsId, uint quantity); // 购买Chance成功通知
 	event NotifySubmitPlaintext(address indexed consumer, uint goodsId, uint userId, bytes32 ciphertext); // 提交随机数明文通知
-	event SubmitPlaintext(address indexed consumer, uint goodsId, uint userId);
+	event SubmitPlaintext(address indexed consumer, uint goodsId, uint userId); // 随机数明文提交成功通知
    
     // 初始化,将合同创建者设置为主办方
     function OneChance() {
@@ -165,8 +165,9 @@ contract OneChance {
         }
     }
     
-    // 提交原始随机数
+    // 提交原始随机数,随机数应在 1-amt 中取值，避免超过 uint 表示范围
     function submitPlaintext(uint _goodsId, uint _userId, uint _plaintext) {
+        if (_plaintext > goodsArr[_goodsId].amt) throw;
         if (goodsArr[_goodsId].plaintextArr[_userId] != 0) {
             SubmitPlaintext(msg.sender, _goodsId, _userId);
             throw;
@@ -185,6 +186,7 @@ contract OneChance {
             }
         }
         
+        // 计算中奖用户
         goodsArr[_goodsId].winner = winner%goodsArr[_goodsId].amt;
         
     }
