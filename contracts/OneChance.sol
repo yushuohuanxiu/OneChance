@@ -1,5 +1,4 @@
 pragma solidity ^0.4.1;
-
 /* OneChanceCoin 是专用于 OneChance 活动合约的货币，与一元人民币1:1等价
    主办方提供web网页，用户可以在页面通过支付宝、微信等接口支付人民币兑换 OneChanceCoin
    主办方收到用户支付的人民币后，调用 mint 接口为用户发放 OneChanceCoin
@@ -189,5 +188,27 @@ contract OneChance {
         // 计算中奖用户
         goodsArr[_goodsId].winner = winner%goodsArr[_goodsId].amt;
         
+    }
+    
+    function getTopGoodsIndex() returns (uint) {
+        return goodsArr.length;
+    }
+    
+    function getGoods(uint _index) returns (string name, uint amt, string description, uint winner, address[] consumerArr, bytes32[] ciphertextArr, uint[] plaintextArr) {
+        name = goodsArr[_index].name;
+        amt = goodsArr[_index].amt;
+        description = goodsArr[_index].description;
+        winner = goodsArr[_index].winner;
+        consumerArr = goodsArr[_index].consumerArr;
+        ciphertextArr = goodsArr[_index].ciphertextArr;
+        plaintextArr = goodsArr[_index].plaintextArr;
+    }
+    
+    function getGoodsInfo(uint _index) returns (string name, uint amt, string description, uint alreadySale, uint winner) {
+        name = goodsArr[_index].name;
+        amt = goodsArr[_index].amt;
+        description = goodsArr[_index].description;
+        alreadySale = goodsArr[_index].amt - goodsArr[_index].consumerArr.length;
+        winner = goodsArr[_index].winner;
     }
 }
