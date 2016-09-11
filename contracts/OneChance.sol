@@ -1,6 +1,6 @@
 pragma solidity ^0.4.1;
 /* OneChanceCoin 是专用于 OneChance 活动合约的货币，与一元人民币1:1等价
-   主办方提供web网页，用户可以在页面通过支付宝、微信等接口支付人民币兑换 OneChanceCoin
+   主办方提供web服务，用户可以在页面通过支付宝、微信等接口支付人民币兑换 OneChanceCoin
    主办方收到用户支付的人民币后，调用 mint 接口为用户发放 OneChanceCoin
    OneChanceCoin 可以在用户之间自由转移
    OneChanceCoin 的消费，只能由 OneChance 活动合约发起
@@ -53,7 +53,7 @@ contract OneChanceCoin {
     }
    
     /* 发放 OneChanceCoin ,只有主办方有权调用此方法
-	   @param _orderid 用户在主办方购买 OneChanceCoin 时创建的订单，主办方根据 Mint 通知中的订单号参数确认是那一笔订单发放 OneChanceCoin 成功
+       后续完善方案可以给发放方法添加订单号参数,发放成功的event事件中下发订单号,方便主办方做订单管理
 	*/
     function mint(address _receiver, uint _value) onlySponsor {
         if (balanceOf[_receiver] + _value < balanceOf[_receiver]) throw;
@@ -80,6 +80,14 @@ contract OneChanceCoin {
    
 }
 
+/* 一元夺宝活动合约,主办方通过合约可以发布价值为amt的奖品,用户使用 OneChanceCoin 购买奖品的中奖 Chance ,每个用户可以购买1到多份 Chance
+   每个奖品的中奖结果由所有用户参与生成,用户在购买 Chance 的同时提供对应数量的 sha3(随机数) ,通过sha3哈希后的摘要数据无法计算出原始值
+   在奖品的全部 Chance 售罄后,合约会发送 event 事件给奖品的购买用户,购买用户收到事件通知后,需要提交购买 Chance 时提供的 随机数明文
+   当奖品的所有购买用户随机数集齐,合约自动计算中奖用户 sum(所有用户随机数)%amt+1
+   目前没有考虑用户恶意不提交原始随机数的情况(比如最后一个用户发现提交随机数后自己没有中奖,不提交自己正好可以中奖)
+   后续优化方案可以考虑每个用户缴纳一定数量保证金,对不提交用户罚没保证金并退还其它用户购买金额
+   或使用会员等级对应不同级别奖品等形式控制
+*/
 contract OneChance {
    
     // 活动主办方
@@ -208,8 +216,8 @@ contract OneChance {
         return goodsMap[_goodsId].consumerMap[goodsMap[_goodsId].winner].userAddr;
     }
     
-    // 查询活动信息
-    function getGoodsInfo(uint _goodsId, uint _userId) returns (address userAddr, bytes32 ciphertext, uint plaintext) {
+    // 查询用户信息
+    function getUserInfo(uint _goodsId, uint _userId) returns (address userAddr, bytes32 ciphertext, uint plaintext) {
         User user = goodsMap[_goodsId].consumerMap[_userId];
         userAddr = user.userAddr;
         ciphertext = user.ciphertext;
