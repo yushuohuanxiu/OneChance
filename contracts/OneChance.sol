@@ -177,6 +177,7 @@ contract OneChance {
     // 提交原始随机数,随机数应在 1-9223372036854775807 中取值(web3.js的toHex函数最大可以处理的值)
     function submitPlaintext(uint _goodsId, uint _userId, uint _plaintext) {
         Goods goods = goodsMap[_goodsId];
+        if (goods.alreadySale != goods.amt) throw; // Chance 售罄前不允许提交原始随机数
         if (_plaintext > 9223372036854775807) throw;
         if (goods.consumerMap[_userId].plaintext != 0) { // 如果原始随机数已提交过,不重复做写操作
             SubmitPlaintext(msg.sender, _goodsId, _userId);
@@ -197,8 +198,22 @@ contract OneChance {
         }
         
         // 计算中奖用户
-        goods.winner = plaintextSum % goodsMap[_goodsId].amt;
+        goods.winner = plaintextSum % goodsMap[_goodsId].amt + 1;
         
+    }
+    
+    // 查询中奖用户
+    function getWinner(uint _goodsId) returns (address) {
+        if (goodsMap[_goodsId].winner == 0) return 0;
+        return goodsMap[_goodsId].consumerMap[goodsMap[_goodsId].winner].userAddr;
+    }
+    
+    // 查询活动信息
+    function getGoodsInfo(uint _goodsId, uint _userId) returns (address userAddr, bytes32 ciphertext, uint plaintext) {
+        User user = goodsMap[_goodsId].consumerMap[_userId];
+        userAddr = user.userAddr;
+        ciphertext = user.ciphertext;
+        plaintext = user.plaintext;
     }
 
 }
