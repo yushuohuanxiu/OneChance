@@ -35,7 +35,7 @@ contract OneChanceCoin {
     }
     
     event Transfer(address indexed from, address indexed receiver, uint value);
-	event Mint(address indexed sponsor, address indexed receiver, uint value);
+    event Mint(address indexed sponsor, address indexed receiver, uint value);
  
     /* 初始化 OneChanceCoin 合约时,将合同创建者设置为主办方
        初始化参数 _name=OneChanceCoin, _symbol=C, _decimals=0
@@ -44,6 +44,7 @@ contract OneChanceCoin {
         sponsor = msg.sender;
         name = _name;
         symbol = _symbol;
+        decimals = _decimals;
     }
    
     /* 设置 OneChance 合约地址,只有主办方可以调用此方法，而且此方法只第一次调用生效 */
@@ -54,12 +55,12 @@ contract OneChanceCoin {
    
     /* 发放 OneChanceCoin ,只有主办方有权调用此方法
        后续完善方案可以给发放方法添加订单号参数,发放成功的event事件中下发订单号,方便主办方做订单管理
-	*/
+    */
     function mint(address _receiver, uint _value) onlySponsor {
         if (balanceOf[_receiver] + _value < balanceOf[_receiver]) throw;
         balanceOf[_receiver] += _value;
-		// 通知主办方 OneChanceCoin 发放成功
-		Mint(msg.sender, _receiver, _value);
+        // 通知主办方 OneChanceCoin 发放成功
+        Mint(msg.sender, _receiver, _value);
     }
    
     /* 消费 OneChanceCoin , OneChanceCoin 只能用于 OneChance 活动,因此只有 OneChance 合约有权调用此方法 */
@@ -121,9 +122,9 @@ contract OneChance {
     }
     
     event PostGoods(address indexed sponsor, string name, uint amt, string description, uint goodsId); // 商品发布成功通知
-	event BuyChance(address indexed consumer, uint goodsId, uint quantity); // 购买Chance成功通知
-	event NotifySubmitPlaintext(address indexed consumer, uint goodsId, uint userId, bytes32 ciphertext); // 提交随机数明文通知
-	event SubmitPlaintext(address indexed consumer, uint goodsId, uint userId); // 随机数明文提交成功通知
+    event BuyChance(address indexed consumer, uint goodsId, uint quantity); // 购买Chance成功通知
+    event NotifySubmitPlaintext(address indexed consumer, uint goodsId, uint userId, bytes32 ciphertext); // 提交随机数明文通知
+    event SubmitPlaintext(address indexed consumer, uint goodsId, uint userId); // 随机数明文提交成功通知
    
     // 初始化,将合同创建者设置为主办方
     function OneChance() {
