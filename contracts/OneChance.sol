@@ -39,7 +39,7 @@ contract OneChanceCoin {
     event Mint(address indexed sponsor, address indexed receiver, uint value);
  
     /* 初始化 OneChanceCoin 合约时,将合同创建者设置为主办方
-       初始化参数 _name=OneChanceCoin, _symbol=C, _decimals=0
+       初始化参数 _name="ChanceCoin", _symbol="C", _decimals=0
     */
     function OneChanceCoin(string _name, string _symbol, uint8 _decimals) {
         sponsor = msg.sender;
@@ -139,6 +139,8 @@ contract OneChance {
     function initOneChanceCoin(address _address) onlySponsor {
         if (address(oneChanceCoin) != 0) throw;
         oneChanceCoin = OneChanceCoin(_address);
+        // 通知主办方OneChanceCoin合约地址设置成功
+        InitOneChanceCoin(msg.sender, _address);
     }
    
     // 发布奖品,只有主办方可以调用
@@ -218,12 +220,6 @@ contract OneChance {
             NotifyWinnerResult(goods.consumerMap[i].userAddr, _goodsId, goods.winner);
         }
         
-    }
-    
-    // 查询中奖用户
-    function getWinner(uint _goodsId) returns (address) {
-        if (goodsMap[_goodsId].winner == 0) return 0;
-        return goodsMap[_goodsId].consumerMap[goodsMap[_goodsId].winner].userAddr;
     }
     
     // 查询用户信息
