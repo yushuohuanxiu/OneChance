@@ -34,6 +34,7 @@ contract OneChanceCoin {
         _;
     }
     
+    event InitOneChance(address indexed sponsor, address oneChance); // OneChance 合约地址设置成功通知
     event Transfer(address indexed from, address indexed receiver, uint value);
     event Mint(address indexed sponsor, address indexed receiver, uint value);
  
@@ -51,6 +52,7 @@ contract OneChanceCoin {
     function initOneChance(address _oneChance) onlySponsor {
         if (oneChance != 0) throw;
         oneChance = _oneChance;
+        InitOneChance(msg.sender, oneChance);
     }
    
     /* 发放 OneChanceCoin ,只有主办方有权调用此方法
@@ -121,10 +123,12 @@ contract OneChance {
         _;
     }
     
+    event InitOneChanceCoin(address indexed sponsor, address oneChanceCoinAddr); // oneChanceCoin 合约地址设置成功通知
     event PostGoods(address indexed sponsor, string name, uint amt, string description, uint goodsId); // 商品发布成功通知
     event BuyChance(address indexed consumer, uint goodsId, uint quantity); // 购买Chance成功通知
     event NotifySubmitPlaintext(address indexed consumer, uint goodsId, uint userId, bytes32 ciphertext); // 提交随机数明文通知
     event SubmitPlaintext(address indexed consumer, uint goodsId, uint userId); // 随机数明文提交成功通知
+    event NotifyWinnerResult(address indexed consumer, uint goodsId, uint winner);
    
     // 初始化,将合同创建者设置为主办方
     function OneChance() {
@@ -208,6 +212,11 @@ contract OneChance {
         
         // 计算中奖用户
         goods.winner = plaintextSum % goodsMap[_goodsId].amt + 1;
+        
+        // 通知所有用户中奖结果
+        for (i=1; i<=goods.amt; i++) {
+            NotifyWinnerResult(goods.consumerMap[i].userAddr, _goodsId, goods.winner);
+        }
         
     }
     
