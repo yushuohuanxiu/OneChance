@@ -152,7 +152,7 @@ contract OneChance {
         topGoodsIndex++;
         goodsMap[topGoodsIndex] = goods;
         // 通知主办方发布成功
-        PostGoods(_txIndex, topGoodsIndex);
+        PostGoods(topGoodsIndex, _txIndex);
     }
    
     // 购买 Chance ,同一用户多次购买同一 goods 的话，需要 txIndex 区分
