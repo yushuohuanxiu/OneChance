@@ -7,11 +7,11 @@ pragma solidity ^0.4.1;
  * 本合约只在用户第一次注册时消耗gas存储用户地址信息，之后用户address到uid的双向查询都不需要成本
  */
 contract AddressCompress {
+    
     mapping (address => uint32) public uidOf;
     mapping (uint32 => address) public addrOf;
     
     uint32 public topUid;
-    
     
     function regist(address _addr) returns (uint32 uid) {
         if (uidOf[_addr] != 0) throw;
@@ -50,10 +50,6 @@ contract OneChanceCoin {
     // value 字段存储 uint32 ,最大支持43亿左右余额
     mapping (uint32 => uint32) private balances;
     
-    function balanceOf(address _addr) returns (uint balance) {
-        return balances[addressCompress.uidOf(_addr)];
-    }
-    
     modifier onlySponsor() {
         if (msg.sender != sponsor) throw;
         _;
@@ -79,6 +75,10 @@ contract OneChanceCoin {
         decimals = _decimals;
         addressCompress = AddressCompress(_addressCompress);
     }
+    
+    function balanceOf(address _addr) returns (uint balance) {
+        balance = balances[addressCompress.uidOf(_addr)];
+    }
    
     /* 设置 OneChance 合约地址,只有主办方可以调用此方法，而且此方法只第一次调用生效 */
     function initOneChance(address _oneChance) onlySponsor {
@@ -91,8 +91,8 @@ contract OneChanceCoin {
      * 主办方使用 txIndex 在多笔发行操作时确认是哪一笔操作成功
      */
     function mint(address _receiver, uint32 _value, uint _txIndex) onlySponsor {
-        // 这一步是否消耗gas,文档中没有找到明确描述,需要进一步实验
-        // 如果此步骤消耗gas,建议将uid的查询与注册交给用户的客户端自动操作,用户与OneChanceCoin只使用uid交互
+        // uidOf方法是否消耗gas,文档中没有找到明确描述,需要进一步实验
+        // 如果uidOf消耗gas,建议将uid的查询交给用户的客户端自动使用call调用,用户与OneChanceCoin只使用uid交互
         uint32 uid = addressCompress.uidOf(_receiver);
         if (uid == 0)
             uid = addressCompress.regist(_receiver);
@@ -145,20 +145,22 @@ contract OneChance {
     // 地址压缩合约地址，提供地址转换以压缩地址字段长度
     AddressCompress public addressCompress;
     
+    // 随机数种子对象
     struct RandomSeed {
         bytes32 ciphertext;
         uint32 plaintext;
     }
     
+    // 奖品对象
     struct Goods {
         string name; // 奖品名称
         uint32 amt; // 奖品价格
         string description; // 奖品描述
-        uint32 winnerId; // 中奖用户，等于 sum(所有用户随机数)%amt+1
+        uint32 winnerId; // 中奖用户Id，等于 sum(所有用户随机数)%amt+1
         uint32 ciphertextsLength; // 用户提交的sha3(原始随机数种子)数量
         uint32 plaintextsLength; // 用户提交的原始随机数种子数量
-        uint32[] consumers; // 购买用户列表
-        mapping (uint32 => RandomSeed) randomSeeds; // 原始随机数种子
+        uint32[] consumers; // 购买用户列表,index+1=用户Id,存储内容为压缩地址uid
+        mapping (uint32 => RandomSeed) randomSeeds; // 随机数种子
     }
     
     // 商品列表
@@ -177,11 +179,34 @@ contract OneChance {
     event SubmitPlaintext(address indexed consumer, uint txIndex); // 随机数明文提交成功通知
     event NotifyWinnerResult(uint goodsId, uint winner);
    
-    // 初始化,将合同创建者设置为主办方
+    // 初始化,将合同创建者设置为主办方,同时初始化地址压缩与代币合约地址
     function OneChance(address _oneChanceCoin, address _addressCompress) {
         sponsor = msg.sender;
         oneChanceCoin = OneChanceCoin(_oneChanceCoin);
         addressCompress = AddressCompress(_addressCompress);
+    }
+    
+    // 查询奖品信息
+    function goods(uint32 _goodsId) returns (string name, uint32 amt, string description, uint consumersLength, uint32 ciphertextsLength, uint32 plaintextsLength, uint32 winnerId, address winnerAddr) {
+        Goods goods = goodses[_goodsId];
+        name = goods.name;
+        amt = goods.amt;
+        description = goods.description;
+        consumersLength = goods.consumers.length;
+        ciphertextsLength = goods.ciphertextsLength;
+        plaintextsLength = goods.plaintextsLength;
+        winnerId = goods.winnerId;
+        if (winnerId!=0) {
+            // 用户Id-1得到数组下标,然后用地址压缩合约查询uid得到用户实际地址
+            winnerAddr = addressCompress.addrOf(goods.consumers[winnerId-1]);
+        }
+    }
+    
+    // 查询用户信息
+    function user(uint32 _goodsId, uint32 _userId) returns (address userAddr, bytes32 ciphertext, uint32 plaintext) {
+        userAddr = addressCompress.addrOf(goodses[_goodsId].consumers[_userId-1]);
+        ciphertext = goodses[_goodsId].randomSeeds[_userId].ciphertext;
+        plaintext = goodses[_goodsId].randomSeeds[_userId].plaintext;
     }
    
     // 发布奖品,只有主办方可以调用,主办方用 txIndex 确定多笔发布奖品操作具体哪一个奖品发布成功
@@ -196,15 +221,15 @@ contract OneChance {
         PostGoods(topGoodsId, _txIndex);
     }
    
-    // 购买 Chance ,同一用户多次购买同一 goods 的话，需要 txIndex 区分
+    // 购买 Chance ,同一用户多次购买同一 goods 的话,需要 txIndex 区分, sha3(随机数种子) 是可选参数
     function buyChance(uint32 _goodsId, uint32 _quantity, bytes32 _ciphertext, uint _txIndex) {
         Goods goods = goodses[_goodsId];
         if (goods.consumers.length + _quantity > goods.amt) throw;
         
-        uint32 consumerUid = addressCompress.uidOf(msg.sender);
+        uint32 uid = addressCompress.uidOf(msg.sender);
        
         // 扣减用户 ChanceCoin
-        oneChanceCoin.consume(consumerUid, _quantity);
+        oneChanceCoin.consume(uid, _quantity);
         
         // 通知用户购买成功，用户需要记录自己的 goodsId+beginUserId+plaintext ,提交原始随机数时需要
         BuyChance(msg.sender, goods.consumers.length+1, _txIndex);
@@ -218,7 +243,7 @@ contract OneChance {
         
         // 记录商品的购买用户
         for (uint32 i=0; i<_quantity; i++) {
-            goods.consumers.push(consumerUid);
+            goods.consumers.push(uid);
         }
         
         // 如果商品 Chance 已售罄，通知购买用户提交原始随机数以生成中奖用户
@@ -252,28 +277,6 @@ contract OneChance {
             NotifyWinnerResult(_goodsId, goods.winnerId);
         }
         
-    }
-    
-    // 查询商品信息
-    function goods(uint32 _goodsId) returns (string name, uint32 amt, string description, uint32 consumersLength, uint32 ciphertextsLength, uint32 plaintextsLength, uint32 winnerId, address winnerAddr) {
-        Goods goods = goodses[_goodsId];
-        name = goods.name;
-        amt = goods.amt;
-        description = goods.description;
-        consumersLength = uint32(goods.consumers.length);
-        ciphertextsLength = goods.ciphertextsLength;
-        plaintextsLength = goods.plaintextsLength;
-        winnerId = goods.winnerId;
-        if (winnerId!=0) {
-            winnerAddr = addressCompress.addrOf(winnerId);
-        }
-    }
-    
-    // 查询用户信息
-    function user(uint32 _goodsId, uint32 _userId) returns (address userAddr, bytes32 ciphertext, uint32 plaintext) {
-        userAddr = addressCompress.addrOf(goodses[_goodsId].consumers[_userId-1]);
-        ciphertext = goodses[_goodsId].randomSeeds[_userId].ciphertext;
-        plaintext = goodses[_goodsId].randomSeeds[_userId].plaintext;
     }
 
 }
