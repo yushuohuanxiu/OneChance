@@ -236,7 +236,7 @@ contract OneChance {
     function buyChance(uint32 _goodsId, uint32 _quantity, bytes32 _ciphertext, uint _txIndex) {
         Goods goods = goodses[_goodsId-1];
         if (goods.consumers.length + _quantity > goods.amt) throw;
-        if (_ciphertext != sha3(0)) throw; // 随机数种子不允许为0
+        if (_ciphertext == sha3(0)) throw; // 随机数种子不允许为0
         
         uint32 uid = addressCompress.uidOf(msg.sender);
        
