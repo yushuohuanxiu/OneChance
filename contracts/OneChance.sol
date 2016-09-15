@@ -1,4 +1,25 @@
 pragma solidity ^0.4.1;
+
+/* 地址压缩工具
+ * 本合约作为基础设施，维护一份20byte地址数据到4byte无符号整数的双向映射
+ * 如果某个合约需要存储大量重复地址信息(例如一元夺宝合约每一个商品都要存储所有购买用户的地址列表，不同商品的购买用户列表很大程度上是重复的)
+ * 可以调用本合约将地址压缩为4byte后存储
+ * 本合约只在用户第一次注册时消耗gas存储用户地址信息，之后用户address到uid的双向查询都不需要成本
+ */
+contract AddressCompress {
+    mapping (address => uint32) public uidOf;
+    mapping (uint32 => address) public addrOf;
+    
+    uint32 public topUid;
+    
+    
+    function regist(address _addr) returns (uint32 uid) {
+        if (uidOf[_addr] != 0) throw;
+        uid = ++topUid;
+        uidOf[_addr] = uid;
+        addrOf[uid] = _addr;
+    }
+}
 /* OneChanceCoin 是专用于 OneChance 活动合约的货币，与一元人民币1:1等价
  * 主办方提供web服务，用户可以在页面通过支付宝、微信等接口支付人民币兑换 OneChanceCoin
  * 主办方收到用户支付的人民币后，调用 mint 接口为用户发放 OneChanceCoin
@@ -20,9 +41,18 @@ contract OneChanceCoin {
    
     // OneChance 活动只能合约地址,只有 OneChance 合约有权扣钱用户 OneChanceCoin
     address public oneChance;
+    
+    // 地址压缩合约地址，提供地址转换以压缩地址字段长度
+    AddressCompress public addressCompress;
  
     // 用户 OneChanceCoin 余额列表
-    mapping (address => uint) public balanceOf;
+    // key 字段存储 4byes uid
+    // value 字段存储 uint32 ,最大支持43亿左右余额
+    mapping (uint32 => uint32) private balances;
+    
+    function balanceOf(address _addr) returns (uint balance) {
+        return balances[addressCompress.uidOf(_addr)];
+    }
     
     modifier onlySponsor() {
         if (msg.sender != sponsor) throw;
@@ -40,12 +70,14 @@ contract OneChanceCoin {
  
     /* 初始化 OneChanceCoin 合约时,将合同创建者设置为主办方
      * 初始化参数 _name="ChanceCoin", _symbol="C", _decimals=0
+     * 初始化参数 _addressCompress 传入地址压缩合约的地址
      */
-    function OneChanceCoin(string _name, string _symbol, uint8 _decimals) {
+    function OneChanceCoin(string _name, string _symbol, uint8 _decimals, address _addressCompress) {
         sponsor = msg.sender;
         name = _name;
         symbol = _symbol;
         decimals = _decimals;
+        addressCompress = AddressCompress(_addressCompress);
     }
    
     /* 设置 OneChance 合约地址,只有主办方可以调用此方法，而且此方法只第一次调用生效 */
@@ -58,26 +90,38 @@ contract OneChanceCoin {
     /* 发放 OneChanceCoin ,只有主办方有权调用此方法
      * 主办方使用 txIndex 在多笔发行操作时确认是哪一笔操作成功
      */
-    function mint(address _receiver, uint _value, uint _txIndex) onlySponsor {
-        if (balanceOf[_receiver] + _value < balanceOf[_receiver]) throw;
-        balanceOf[_receiver] += _value;
-        // 通知主办方 OneChanceCoin 发放成功
+    function mint(address _receiver, uint32 _value, uint _txIndex) onlySponsor {
+        // 这一步是否消耗gas,文档中没有找到明确描述,需要进一步实验
+        // 如果此步骤消耗gas,建议将uid的查询与注册交给用户的客户端自动操作,用户与OneChanceCoin只使用uid交互
+        uint32 uid = addressCompress.uidOf(_receiver);
+        if (uid == 0)
+            uid = addressCompress.regist(_receiver);
+        
+        if (balances[uid] + _value < balances[uid]) throw;
+        balances[uid] += _value;
+        // 通知 OneChanceCoin 发放成功
         Mint(_receiver, _value, _txIndex);
     }
    
     /* 消费 OneChanceCoin , OneChanceCoin 只能用于 OneChance 活动,因此只有 OneChance 合约有权调用此方法 */
-    function consume(address _consumer, uint _value) onlyOneChance external returns (bool success) {
-        if (balanceOf[_consumer] < _value) throw;
-        balanceOf[_consumer] -= _value;
+    function consume(address _consumer, uint32 _value) onlyOneChance external returns (bool success) {
+        uint32 uid = addressCompress.uidOf(_consumer);
+        if (balances[uid] < _value) throw;
+        balances[uid] -= _value;
         return true;
     }
  
     /* 发送, OneChanceCoin 允许在用户之间转移 */
-    function transfer(address _receiver, uint _value) {
-        if (balanceOf[msg.sender] < _value) throw;
-        if (balanceOf[_receiver] + _value < balanceOf[_receiver]) throw;
-        balanceOf[msg.sender] -= _value;
-        balanceOf[_receiver] += _value;
+    function transfer(address _receiver, uint32 _value) {
+        uint32 senderUid = addressCompress.uidOf(msg.sender);
+        if (senderUid == 0) throw;
+        if (balances[senderUid] < _value) throw;
+        uint32 receiverUid = addressCompress.uidOf(_receiver);
+        if (receiverUid == 0)
+            receiverUid = addressCompress.regist(_receiver);
+        if (balances[receiverUid] + _value < balances[receiverUid]) throw;
+        balances[senderUid] -= _value;
+        balances[receiverUid] += _value;
         Transfer(msg.sender, _receiver, _value);
     }
    
@@ -99,28 +143,40 @@ contract OneChance {
     // 代币合约
     OneChanceCoin public oneChanceCoin;
     
-    struct User {
-        address userAddr; // 用户账户
-        bytes32 ciphertext; // 用户购买 Chance 时提交的 sha3(随机数)
-        uint plaintext; // Chance 售罄后通知用户提交的 原始随机数
+    // 地址压缩合约地址，提供地址转换以压缩地址字段长度
+    AddressCompress public addressCompress;
+    
+    struct RandomSeed {
+        uint32 ciphertexts;
+        uint32 plaintexts;
     }
     
     struct Goods {
         string name; // 奖品名称
-        uint amt; // 奖品价格
+        uint32 amt; // 奖品价格
         string description; // 奖品描述
-        uint alreadySale;
-        mapping (uint => User) consumerMap; // 购买了 Chance 的用户列表
-        uint winner; // 中奖用户，等于 sum(所有用户随机数)%amt+1
+        uint32 winner; // 中奖用户，等于 sum(所有用户随机数)%amt+1
+        uint32[] consumers; // 购买用户列表
+        mapping (uint32 => RandomSeed) randomSeeds; // 原始随机数种子
     }
     
     // 商品列表
-    mapping (uint => Goods) public goodsMap;
-    uint public topGoodsIndex;
+    Goods[] private goodses;
+    uint public topGoodsId;
     
     modifier onlySponsor() {
         if (msg.sender != sponsor) throw;
         _;
+    }
+    
+    function goods(uint32 _goodsId) returns (string name, uint32 amt, string description, uint32 winner, uint32 consumersLength, uint32 ciphertextsLength) {
+        Goods goods = goodses[_goodsId];
+        name = goods.name;
+        amt = goods.amt;
+        description = goods.description;
+        winner = goods.winner;
+        consumersLength = goods.consumers.length;
+        ciphertextsLength = goods.ciphertexts.length;
     }
     
     event InitOneChanceCoin(); // oneChanceCoin 合约地址设置成功通知
@@ -131,16 +187,10 @@ contract OneChance {
     event NotifyWinnerResult(uint goodsId, uint winner);
    
     // 初始化,将合同创建者设置为主办方
-    function OneChance() {
+    function OneChance(address _oneChanceCoin, address _addressCompress) {
         sponsor = msg.sender;
-    }
-    
-    // 初始化代币合约地址,只有主办方可以调用,而且只可以调用一次
-    function initOneChanceCoin(address _address) onlySponsor {
-        if (address(oneChanceCoin) != 0) throw;
-        oneChanceCoin = OneChanceCoin(_address);
-        // 通知主办方OneChanceCoin合约地址设置成功
-        InitOneChanceCoin();
+        oneChanceCoin = OneChanceCoin(_oneChanceCoin);
+        addressCompress = AddressCompress(_addressCompress);
     }
    
     // 发布奖品,只有主办方可以调用,主办方用 txIndex 确定多笔发布奖品操作具体哪一个奖品发布成功
