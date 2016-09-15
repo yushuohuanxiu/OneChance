@@ -104,10 +104,9 @@ contract OneChanceCoin {
     }
    
     /* 消费 OneChanceCoin , OneChanceCoin 只能用于 OneChance 活动,因此只有 OneChance 合约有权调用此方法 */
-    function consume(address _consumer, uint32 _value) onlyOneChance external returns (bool success) {
-        uint32 uid = addressCompress.uidOf(_consumer);
-        if (balances[uid] < _value) throw;
-        balances[uid] -= _value;
+    function consume(uint32 _consumerUid, uint32 _value) onlyOneChance external returns (bool success) {
+        if (balances[_consumerUid] < _value) throw;
+        balances[_consumerUid] -= _value;
         return true;
     }
  
@@ -147,36 +146,28 @@ contract OneChance {
     AddressCompress public addressCompress;
     
     struct RandomSeed {
-        uint32 ciphertexts;
-        uint32 plaintexts;
+        bytes32 ciphertext;
+        uint32 plaintext;
     }
     
     struct Goods {
         string name; // 奖品名称
         uint32 amt; // 奖品价格
         string description; // 奖品描述
-        uint32 winner; // 中奖用户，等于 sum(所有用户随机数)%amt+1
+        uint32 winnerId; // 中奖用户，等于 sum(所有用户随机数)%amt+1
+        uint32 ciphertextsLength; // 用户提交的sha3(原始随机数种子)数量
+        uint32 plaintextsLength; // 用户提交的原始随机数种子数量
         uint32[] consumers; // 购买用户列表
         mapping (uint32 => RandomSeed) randomSeeds; // 原始随机数种子
     }
     
     // 商品列表
     Goods[] private goodses;
-    uint public topGoodsId;
+    uint32 public topGoodsId;
     
     modifier onlySponsor() {
         if (msg.sender != sponsor) throw;
         _;
-    }
-    
-    function goods(uint32 _goodsId) returns (string name, uint32 amt, string description, uint32 winner, uint32 consumersLength, uint32 ciphertextsLength) {
-        Goods goods = goodses[_goodsId];
-        name = goods.name;
-        amt = goods.amt;
-        description = goods.description;
-        winner = goods.winner;
-        consumersLength = goods.consumers.length;
-        ciphertextsLength = goods.ciphertexts.length;
     }
     
     event InitOneChanceCoin(); // oneChanceCoin 合约地址设置成功通知
@@ -194,81 +185,95 @@ contract OneChance {
     }
    
     // 发布奖品,只有主办方可以调用,主办方用 txIndex 确定多笔发布奖品操作具体哪一个奖品发布成功
-    function postGoods(string _name, uint _amt, string _description, uint _txIndex) onlySponsor {
+    function postGoods(string _name, uint32 _amt, string _description, uint _txIndex) onlySponsor {
         Goods memory goods;
         goods.name = _name;
         goods.amt = _amt;
         goods.description = _description;
-        topGoodsIndex++;
-        goodsMap[topGoodsIndex] = goods;
+        topGoodsId++;
+        goodses[topGoodsId] = goods;
         // 通知主办方发布成功
-        PostGoods(topGoodsIndex, _txIndex);
+        PostGoods(topGoodsId, _txIndex);
     }
    
     // 购买 Chance ,同一用户多次购买同一 goods 的话，需要 txIndex 区分
-    function buyChance(uint _goodsId, bytes32[] _ciphertextArr, uint _txIndex) {
-        Goods goods = goodsMap[_goodsId];
-        if (goods.alreadySale + _ciphertextArr.length > goods.amt) throw;
-        for (uint i=0; i<_ciphertextArr.length; i++) {
-            if (sha3(0) == _ciphertextArr[i]) throw;
-        }
+    function buyChance(uint32 _goodsId, uint32 _quantity, bytes32 _ciphertext, uint _txIndex) {
+        Goods goods = goodses[_goodsId];
+        if (goods.consumers.length + _quantity > goods.amt) throw;
+        
+        uint32 consumerUid = addressCompress.uidOf(msg.sender);
        
         // 扣减用户 ChanceCoin
-        oneChanceCoin.consume(msg.sender, _ciphertextArr.length);
+        oneChanceCoin.consume(consumerUid, _quantity);
         
-        // 通知用户购买成功，用户需要记录自己的 goodsId+beginUserId+_plaintextArr ,提交原始随机数时需要
-        BuyChance(msg.sender, goods.alreadySale+1, _txIndex);
+        // 通知用户购买成功，用户需要记录自己的 goodsId+beginUserId+plaintext ,提交原始随机数时需要
+        BuyChance(msg.sender, goods.consumers.length+1, _txIndex);
+        
+        // 记录用户提交的sha3(随机数种子)
+        if (_ciphertext != sha3(0)) {
+            RandomSeed memory randomSeed;
+            randomSeed.ciphertext = _ciphertext;
+            goods.randomSeeds[uint32(goods.consumers.length+1)] = randomSeed;
+        }
         
         // 记录商品的购买用户
-        for (i=0; i<_ciphertextArr.length; i++) {
-            goods.alreadySale++;
-            goods.consumerMap[goods.alreadySale] = User(msg.sender, _ciphertextArr[i], 0);
+        for (uint32 i=0; i<_quantity; i++) {
+            goods.consumers.push(consumerUid);
         }
         
         // 如果商品 Chance 已售罄，通知购买用户提交原始随机数以生成中奖用户
-        if (goods.alreadySale == goods.amt) {
+        if (goods.consumers.length == goods.amt) {
             NotifySubmitPlaintext(_goodsId);
         }
     }
     
     // 提交原始随机数
-    function submitPlaintext(uint _goodsId, uint _beginUserId, uint[] _plaintextArr, uint _txIndex) {
-        Goods goods = goodsMap[_goodsId];
-        if (goods.alreadySale != goods.amt) throw; // Chance 售罄前不允许提交原始随机数
+    function submitPlaintext(uint32 _goodsId, uint32 _userId, uint32 _plaintext, uint _txIndex) {
+        Goods goods = goodses[_goodsId];
+        if (goods.consumers.length != goods.amt) throw; // Chance 售罄前不允许提交随机数种子
         
-        uint userId = _beginUserId;
-        for (uint i=0; i<_plaintextArr.length; i++) {
-            if (goods.consumerMap[userId].plaintext != 0) throw; // 如果原始随机数已提交过,不允许重复提交
-            if (sha3(_plaintextArr[i]) != goods.consumerMap[userId].ciphertext) throw; // 原始随机数与sha3结果不符
-            goods.consumerMap[userId].plaintext = _plaintextArr[i];
-            userId++;
-        }
-            
+        if (goods.randomSeeds[_userId].ciphertext == 0) throw; // 如果sha3(随机数种子)未提交过,不允许提交
+        if (goods.randomSeeds[_userId].plaintext != 0) throw; // 如果随机数种子已提交过,不允许重复提交
+        if (sha3(_plaintext) != goods.randomSeeds[_userId].ciphertext) throw; // 随机数种子与sha3结果不符
+        
+        // 保存随机数种子
+        goods.randomSeeds[_userId].plaintext = _plaintext;
+        goods.plaintextsLength++;
         SubmitPlaintext(msg.sender, _txIndex);
         
-        uint plaintextSum;
-        for (i=1; i<=goods.amt; i++) {
-            if (goods.consumerMap[i].plaintext == 0) {
-                return;
-            } else {
-                plaintextSum += goods.consumerMap[i].plaintext;
+        if (goods.plaintextsLength == goods.ciphertextsLength) {
+            uint random;
+            for (uint32 i=0; i<goods.amt; i++) {
+                random += goods.randomSeeds[_userId].plaintext;
             }
+            // 计算中奖用户
+            goods.winnerId = uint32(random % goods.amt + 1);
+            // 通知用户中奖结果
+            NotifyWinnerResult(_goodsId, goods.winnerId);
         }
-        
-        // 计算中奖用户
-        goods.winner = plaintextSum % goods.amt + 1;
-        
-        // 通知用户中奖结果
-        NotifyWinnerResult(_goodsId, goods.winner);
         
     }
     
+    // 查询商品信息
+    function goods(uint32 _goodsId) returns (string name, uint32 amt, string description, uint32 consumersLength, uint32 ciphertextsLength, uint32 plaintextsLength, uint32 winnerId, address winnerAddr) {
+        Goods goods = goodses[_goodsId];
+        name = goods.name;
+        amt = goods.amt;
+        description = goods.description;
+        consumersLength = uint32(goods.consumers.length);
+        ciphertextsLength = goods.ciphertextsLength;
+        plaintextsLength = goods.plaintextsLength;
+        winnerId = goods.winnerId;
+        if (winnerId!=0) {
+            winnerAddr = addressCompress.addrOf(winnerId);
+        }
+    }
+    
     // 查询用户信息
-    function getUserInfo(uint _goodsId, uint _userId) returns (address userAddr, bytes32 ciphertext, uint plaintext) {
-        User user = goodsMap[_goodsId].consumerMap[_userId];
-        userAddr = user.userAddr;
-        ciphertext = user.ciphertext;
-        plaintext = user.plaintext;
+    function user(uint32 _goodsId, uint32 _userId) returns (address userAddr, bytes32 ciphertext, uint32 plaintext) {
+        userAddr = addressCompress.addrOf(goodses[_goodsId].consumers[_userId-1]);
+        ciphertext = goodses[_goodsId].randomSeeds[_userId].ciphertext;
+        plaintext = goodses[_goodsId].randomSeeds[_userId].plaintext;
     }
 
 }
