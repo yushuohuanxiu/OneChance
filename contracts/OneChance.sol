@@ -189,7 +189,7 @@ contract OneChance {
     
     // 查询奖品信息
     function goods(uint32 _goodsId) returns (string name, uint32 amt, string description, uint consumersLength, uint32 ciphertextsLength, uint32 plaintextsLength, uint32 winnerId, address winnerAddr) {
-        Goods goods = goodses[_goodsId];
+        Goods goods = goodses[_goodsId-1];
         name = goods.name;
         amt = goods.amt;
         description = goods.description;
@@ -217,10 +217,9 @@ contract OneChance {
         goods.name = _name;
         goods.amt = _amt;
         goods.description = _description;
-        topGoodsId++;
-        goodses[topGoodsId] = goods;
+        goodses.push(goods);
         // 通知主办方发布成功
-        PostGoods(topGoodsId, _txIndex);
+        PostGoods(goodses.length, _txIndex);
     }
    
     // 购买 Chance ,同一用户多次购买同一 goods 的话,需要 txIndex 区分, sha3(随机数种子) 是可选参数
@@ -232,7 +231,7 @@ contract OneChance {
     // 用户一次购买多个 Chance 的几率是相当大的,因此合约设计为用户一次购买提交一次随机数种子
     // 减少用户操作与存储成本(如果每个 Chance 对应一个随机数种子,用户一次购买100个 Chance ,随机数种子的输入太过复杂)
     function buyChance(uint32 _goodsId, uint32 _quantity, bytes32 _ciphertext, uint _txIndex) {
-        Goods goods = goodses[_goodsId];
+        Goods goods = goodses[_goodsId-1];
         if (goods.consumers.length + _quantity > goods.amt) throw;
         if (_ciphertext != sha3(0)) throw; // 随机数种子不允许为0
         
@@ -262,7 +261,7 @@ contract OneChance {
     
     // 提交原始随机数
     function submitPlaintext(uint32 _goodsId, uint32 _userId, uint32 _plaintext, uint _txIndex) {
-        Goods goods = goodses[_goodsId];
+        Goods goods = goodses[_goodsId-1];
         if (goods.consumers.length != goods.amt) throw; // Chance 售罄前不允许提交随机数种子
         uint32 userIndex = _userId-1;
         if (goods.randomSeeds[userIndex].ciphertext == 0) throw; // 如果sha3(随机数种子)未提交过,不允许提交
