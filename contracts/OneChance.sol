@@ -156,11 +156,11 @@ contract OneChance {
         string name; // 奖品名称
         uint32 amt; // 奖品价格
         string description; // 奖品描述
-        uint32 winnerId; // 中奖用户Id，等于 sum(所有用户随机数)%amt+1
+        uint32 winnerId; // 中奖用户Id，等于 sum(所有用户随机数)%amt+1 ,用户id从1开始，winnerId=0说明还没有开奖
         uint32 ciphertextsLength; // 用户提交的sha3(原始随机数种子)数量
         uint32 plaintextsLength; // 用户提交的原始随机数种子数量
         uint32[] consumers; // 购买用户列表,index+1=用户Id,存储内容为压缩地址uid
-        mapping (uint32 => RandomSeed) randomSeeds; // 随机数种子
+        mapping (uint32 => RandomSeed) randomSeeds; // 随机数种子,key内容是用户index
     }
     
     // 商品列表
@@ -204,9 +204,10 @@ contract OneChance {
     
     // 查询用户信息
     function user(uint32 _goodsId, uint32 _userId) returns (address userAddr, bytes32 ciphertext, uint32 plaintext) {
-        userAddr = addressCompress.addrOf(goodses[_goodsId].consumers[_userId-1]);
-        ciphertext = goodses[_goodsId].randomSeeds[_userId].ciphertext;
-        plaintext = goodses[_goodsId].randomSeeds[_userId].plaintext;
+        uint32 userIndex = _userId-1;
+        userAddr = addressCompress.addrOf(goodses[_goodsId].consumers[userIndex]);
+        ciphertext = goodses[_goodsId].randomSeeds[userIndex].ciphertext;
+        plaintext = goodses[_goodsId].randomSeeds[userIndex].plaintext;
     }
    
     // 发布奖品,只有主办方可以调用,主办方用 txIndex 确定多笔发布奖品操作具体哪一个奖品发布成功
@@ -222,9 +223,17 @@ contract OneChance {
     }
    
     // 购买 Chance ,同一用户多次购买同一 goods 的话,需要 txIndex 区分, sha3(随机数种子) 是可选参数
+    // 同一个用户提交1个或多个随机数种子并没有区别,因此不论用户一次购买多少个 Chance ,只需要用户提交一个随机数种子
+    // 开始认为用户提交与不提交随机数并不影响抽奖结果的随机性(所有用户都不提交也认为是一种随机性),因此随机数种子的提交是可选的
+    // 但是从概率上讲,所有用户都不提交时,用户id为1的用户中奖,假设所有用户都不提交随机数的概率是x
+    // 任何一个用户提交随机数种子后每个用户的中奖概率都为y,则id为1的用户中奖几率比其它用户高x
+    // 因此每个用户的随机数种子为必填选项,建议用户提交的随机数种子不要为有意义的数值,请使用真随机数
+    // 用户一次购买多个 Chance 的几率是相当大的,因此合约设计为用户一次购买提交一次随机数种子
+    // 减少用户操作与存储成本(如果每个 Chance 对应一个随机数种子,用户一次购买100个 Chance ,随机数种子的输入太过复杂)
     function buyChance(uint32 _goodsId, uint32 _quantity, bytes32 _ciphertext, uint _txIndex) {
         Goods goods = goodses[_goodsId];
         if (goods.consumers.length + _quantity > goods.amt) throw;
+        if (_ciphertext != sha3(0)) throw; // 随机数种子不允许为0
         
         uint32 uid = addressCompress.uidOf(msg.sender);
        
@@ -234,12 +243,10 @@ contract OneChance {
         // 通知用户购买成功，用户需要记录自己的 goodsId+beginUserId+plaintext ,提交原始随机数时需要
         BuyChance(msg.sender, goods.consumers.length+1, _txIndex);
         
-        // 记录用户提交的sha3(随机数种子)
-        if (_ciphertext != sha3(0)) {
-            RandomSeed memory randomSeed;
-            randomSeed.ciphertext = _ciphertext;
-            goods.randomSeeds[uint32(goods.consumers.length+1)] = randomSeed;
-        }
+        // 记录用户提交的sha3(随机数种子)、
+        RandomSeed memory randomSeed;
+        randomSeed.ciphertext = _ciphertext;
+        goods.randomSeeds[uint32(goods.consumers.length)] = randomSeed;
         
         // 记录商品的购买用户
         for (uint32 i=0; i<_quantity; i++) {
@@ -256,20 +263,20 @@ contract OneChance {
     function submitPlaintext(uint32 _goodsId, uint32 _userId, uint32 _plaintext, uint _txIndex) {
         Goods goods = goodses[_goodsId];
         if (goods.consumers.length != goods.amt) throw; // Chance 售罄前不允许提交随机数种子
-        
-        if (goods.randomSeeds[_userId].ciphertext == 0) throw; // 如果sha3(随机数种子)未提交过,不允许提交
-        if (goods.randomSeeds[_userId].plaintext != 0) throw; // 如果随机数种子已提交过,不允许重复提交
-        if (sha3(_plaintext) != goods.randomSeeds[_userId].ciphertext) throw; // 随机数种子与sha3结果不符
+        uint32 userIndex = _userId-1;
+        if (goods.randomSeeds[userIndex].ciphertext == 0) throw; // 如果sha3(随机数种子)未提交过,不允许提交
+        if (goods.randomSeeds[userIndex].plaintext != 0) throw; // 如果随机数种子已提交过,不允许重复提交
+        if (sha3(_plaintext) != goods.randomSeeds[userIndex].ciphertext) throw; // 随机数种子与sha3结果不符
         
         // 保存随机数种子
-        goods.randomSeeds[_userId].plaintext = _plaintext;
+        goods.randomSeeds[userIndex].plaintext = _plaintext;
         goods.plaintextsLength++;
         SubmitPlaintext(msg.sender, _txIndex);
         
         if (goods.plaintextsLength == goods.ciphertextsLength) {
             uint random;
             for (uint32 i=0; i<goods.amt; i++) {
-                random += goods.randomSeeds[_userId].plaintext;
+                random += goods.randomSeeds[i].plaintext;
             }
             // 计算中奖用户
             goods.winnerId = uint32(random % goods.amt + 1);
