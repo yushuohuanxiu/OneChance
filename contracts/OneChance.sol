@@ -166,7 +166,6 @@ contract OneChance {
     
     // 商品列表
     Goods[] private goodses;
-    uint32 public topGoodsId;
     
     modifier onlySponsor() {
         if (msg.sender != sponsor) throw;
@@ -185,6 +184,10 @@ contract OneChance {
         sponsor = msg.sender;
         oneChanceCoin = OneChanceCoin(_oneChanceCoin);
         addressCompress = AddressCompress(_addressCompress);
+    }
+    
+    function topGoodsId() returns (uint) {
+        return goodses.length;
     }
     
     // 查询奖品信息
