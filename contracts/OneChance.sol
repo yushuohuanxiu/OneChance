@@ -77,8 +77,8 @@ contract OneChanceCoin {
         addressCompress = AddressCompress(_addressCompress);
     }
     
-    function balanceOf(address _addr) returns (uint balance) {
-        balance = balances[addressCompress.uidOf(_addr)];
+    function balanceOf() returns (uint balance) {
+        balance = balances[addressCompress.uidOf(msg.sender)];
     }
    
     /* 设置 OneChance 合约地址,只有主办方可以调用此方法，而且此方法只第一次调用生效 */
