@@ -149,7 +149,7 @@ contract OneChance {
     // 随机数种子对象
     struct RandomSeed {
         bytes32 ciphertext;
-        uint32 plaintext;
+        uint plaintext;
     }
     
     // 奖品对象
@@ -178,6 +178,7 @@ contract OneChance {
     event NotifySubmitPlaintext(uint goodsId); // 提交随机数明文通知
     event SubmitPlaintext(address indexed consumer, uint txIndex); // 随机数明文提交成功通知
     event NotifyWinnerResult(uint goodsId, uint winner);
+    event Print(string out); // 测试用event
    
     // 初始化,将合同创建者设置为主办方,同时初始化地址压缩与代币合约地址
     function OneChance(address _oneChanceCoin, address _addressCompress) {
@@ -207,11 +208,12 @@ contract OneChance {
     }
     
     // 查询用户信息
-    function user(uint32 _goodsId, uint32 _userId) returns (address userAddr, bytes32 ciphertext, uint32 plaintext) {
+    function user(uint32 _goodsId, uint32 _userId) returns (address userAddr, bytes32 ciphertext, uint plaintext) {
+        Goods goods = goodses[_goodsId-1];
         uint32 userIndex = _userId-1;
-        userAddr = addressCompress.addrOf(goodses[_goodsId].consumers[userIndex]);
-        ciphertext = goodses[_goodsId].randomSeeds[userIndex].ciphertext;
-        plaintext = goodses[_goodsId].randomSeeds[userIndex].plaintext;
+        userAddr = addressCompress.addrOf(goods.consumers[userIndex]);
+        ciphertext = goods.randomSeeds[userIndex].ciphertext;
+        plaintext = goods.randomSeeds[userIndex].plaintext;
     }
    
     // 发布奖品,只有主办方可以调用,主办方用 txIndex 确定多笔发布奖品操作具体哪一个奖品发布成功
@@ -250,6 +252,7 @@ contract OneChance {
         RandomSeed memory randomSeed;
         randomSeed.ciphertext = _ciphertext;
         goods.randomSeeds[uint32(goods.consumers.length)] = randomSeed;
+        goods.ciphertextsLength++;
         
         // 记录商品的购买用户
         for (uint32 i=0; i<_quantity; i++) {
@@ -263,14 +266,14 @@ contract OneChance {
     }
     
     // 提交原始随机数
-    function submitPlaintext(uint32 _goodsId, uint32 _userId, uint32 _plaintext, uint _txIndex) {
+    function submitPlaintext(uint32 _goodsId, uint32 _userId, uint _plaintext, uint _txIndex) {
         Goods goods = goodses[_goodsId-1];
         if (goods.consumers.length != goods.amt) throw; // Chance 售罄前不允许提交随机数种子
         uint32 userIndex = _userId-1;
         if (goods.randomSeeds[userIndex].ciphertext == 0) throw; // 如果sha3(随机数种子)未提交过,不允许提交
         if (goods.randomSeeds[userIndex].plaintext != 0) throw; // 如果随机数种子已提交过,不允许重复提交
         if (sha3(_plaintext) != goods.randomSeeds[userIndex].ciphertext) throw; // 随机数种子与sha3结果不符
-        
+
         // 保存随机数种子
         goods.randomSeeds[userIndex].plaintext = _plaintext;
         goods.plaintextsLength++;
