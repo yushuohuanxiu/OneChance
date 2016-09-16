@@ -21,6 +21,7 @@ contract AddressCompress {
         addrOf[uid] = _addr;
     }
 }
+
 /* OneChanceCoin 是专用于 OneChance 活动合约的货币，与一元人民币1:1等价
  * 主办方提供web服务，用户可以在页面通过支付宝、微信等接口支付人民币兑换 OneChanceCoin
  * 主办方收到用户支付的人民币后，调用 mint 接口为用户发放 OneChanceCoin
@@ -282,7 +283,7 @@ contract OneChance {
         if (goods.plaintextsLength == goods.ciphertextsLength) {
             uint random;
             for (uint32 i=0; i<goods.amt; i++) {
-                random += goods.randomSeeds[i].plaintext;
+                random += goods.randomSeeds[i].plaintext % goods.amt;
             }
             // 计算中奖用户
             goods.winnerId = uint32(random % goods.amt + 1);
