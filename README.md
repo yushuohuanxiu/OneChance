@@ -14,8 +14,8 @@ OneChanceCoin合约实现了以太坊的数字货币规范，用户可以使用�
 
 用户在OneChance合约中提交购买请求，OneChane合约自动扣减用户相应金额的代币(即用户用活动代币兑换了奖品的中奖Chance)
 
-######之所以要使用代币而不是人民币直接购买Chance，是因为合约要处理人民币的支付结果太过复杂，用ChanceCoin代替人民币兑换Chance，简化了OneChance合约的业务逻辑
-######而ChanceCoin和人民币的兑换则交由主办方的服务网站负责
+之所以要使用代币而不是人民币直接购买Chance，是因为合约要处理人民币的支付结果太过复杂，用ChanceCoin代替人民币兑换Chance，简化了OneChance合约的业务逻辑
+而ChanceCoin和人民币的兑换则交由主办方的服务网站负责
     
     address sponsor-活动举办方，用户可以查询此属性验证活动举办方
     address oneChance-OneChane活动合约地址，用户可以查询此属性验证活动合约地址
