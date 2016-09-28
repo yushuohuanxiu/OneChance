@@ -1,0 +1,269 @@
+<!DOCTYPE HTML>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <title>OneChance</title>
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <link href="./static/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <script src="./static/jquery-3.1.0.min.js"></script>
+  <script src="./static/web3.min.js"></script>
+  <script src="./static/bootstrap/js/bootstrap.min.js"></script>
+  <script src="./init.js"></script>
+  <script src="./sponsor.js"></script>
+  <script src="./consumer.js"></script>
+  <script>
+
+  </script>
+</head>
+<body>
+  <nav role="navigation" class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <button aria-controls="navbar" aria-expanded="false" data-target="#navbar" data-toggle="collapse" class="navbar-toggle collapsed"
+          type="button">
+          <span class="sr-only">Toggle navigation</span> <span class="icon-bar"></span> <span class="icon-bar"></span> <span
+            class="icon-bar"></span>
+        </button>
+        <a href="#" class="navbar-brand">OneChance Test Console</a>
+      </div>
+      <div class="navbar-collapse collapse" id="navbar">
+        <ul class="nav navbar-nav">
+          <li><a onclick="changePage('systemDiv');">系统状态</a></li>
+          <li><a onclick="changePage('sponsorDiv');">主办方界面</a></li>
+          <li><a onclick="changePage('consumerDiv');">用户界面</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div id="promptDiv" style="position: fixed; right: 0px; top: 80px; width: 500px;">
+  </div>
+
+  <div role="main" class="container theme-showcase" style="padding-top: 20px; margin-top: 20px;">
+
+    <div id="initDiv" class="page-header">
+      <h1>合约未初始化</h1>
+      <p id="initP"><a role="button" class="btn btn-primary btn-lg" onclick="init();">一键部署</a></p>
+    </div>
+    
+    <div id="systemDiv" style="display: none;">
+      <div class="page-header">
+        <h1>本地账户</h1>
+      </div>
+      <div class="well">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>序号</th>
+              <th>账户地址</th>
+              <th>以太币余额</th>
+              <th>ChanceCoin余额</th>
+            </tr>
+          </thead>
+          <tbody id="accountsTbody">
+          </tbody>
+        </table>
+      </div>
+      <!-- AddressCompress合约状态 -->
+      <div class="page-header">
+        <h1>AddressCompress</h1>
+      </div>
+      <div class="well">
+        <h3>合约地址</h3>
+        <p><span class="AddressCompressAddr"></span></p>
+      </div>
+      <!-- OneChanceCoin合约状态 -->
+      <div class="page-header">
+        <h1>OneChanceCoin</h1>
+      </div>
+      <div class="well">
+        <h3>合约地址</h3>
+        <p><span class="OneChanceCoinAddr"></span></p>
+        <h3>主办方地址</h3>
+        <p><span class="OneChanceCoinSponsorAddr"></span></p>
+        <h3>AddressCompress合约地址</h3>
+        <p><span class="OneChanceCoinAddressCompressAddr"></span></p>
+        <h3>OneChance合约地址</h3>
+        <p><span class="OneChanceCoinOneChanceAddr"></span></p>
+      </div>
+      <!-- OneChanceCoin合约状态 -->
+      <div class="page-header">
+        <h1>OneChance</h1>
+      </div>
+      <div class="well">
+        <h3>合约地址</h3>
+        <p><span class="OneChanceAddr"></span></p>
+        <h3>主办方地址</h3>
+        <p><span class="OneChanceSponsorAddr"></span></p>
+        <h3>AddressCompress合约地址</h3>
+        <p><span class="OneChanceAddressCompressAddr"></span></p>
+        <h3>OneChanceCoin合约地址</h3>
+        <p><span class="OneChanceOneChanceCoinAddr"></span></p>
+      </div>
+    </div>
+    
+    
+    <!-- 主办方界面 -->
+    <div id="sponsorDiv" style="display: none;">
+      <div class="page-header">
+        <h1>最新奖品编号 <span class="topGoodsId">0</span></h1>
+      </div>
+      
+      <div class="page-header">
+        <h1>发布奖品</h1>
+      </div>
+      <div class="well">
+        <form class="form-inline" role="form">
+          <div class="form-group">
+            <label class="sr-only" for="post_name">名称</label>
+            <input class="form-control" id="post_name" placeholder="奖品名称">
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="post_amt">价格</label>
+            <input class="form-control" id="post_amt" placeholder="价格">
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="post_description">描述</label>
+            <input class="form-control" id="post_description" placeholder="描述">
+          </div>
+          <button type="button" class="btn btn-default" onclick="postGoods($('#post_name').val(), $('#post_amt').val(), $('#post_description').val());">发布</button>
+        </form>
+      </div>
+      
+      <div class="page-header">
+        <h1>发行代币</h1>
+      </div>
+      <div class="well">
+        <form class="form-inline" role="form">
+          <div class="form-group">
+            <label class="sr-only" for="mint_receiver">收款账户</label>
+            <select class="form-control accountsSelect" id="mint_receiver">
+                <option>收款账户</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="mint_value">金额</label>
+            <input class="form-control" id="mint_value" placeholder="金额">
+          </div>
+          <button type="button" class="btn btn-default" onclick="mint($('#mint_receiver').val(), $('#mint_value').val());">发行</button>
+        </form>
+      </div>
+    </div>
+    
+    <!-- 用户界面 -->
+    <div id="consumerDiv" style="display: none;">
+      <div class="page-header">
+        <h1>最新奖品编号 <span class="topGoodsId">0</span></h1>
+      </div>
+
+      <div class="page-header">
+        <h1>奖品信息查询</h1>
+      </div>
+      <div class="well">
+        <form class="form-inline" role="form">
+          <div class="form-group">
+            <label class="sr-only" for="goodsId">奖品编号</label>
+            <input class="form-control" id="goodsId" placeholder="奖品编号">
+          </div>
+          <button type="button" class="btn btn-default" onclick="showGoodsInfo($('#goodsId').val());">查询</button>
+        </form>
+        <br/>
+        <table class="table">
+          <thead>
+            <tr><th>奖品属性</th><th>值</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>名称</td><td><span class="goodsName"></span></td></tr>
+            <tr><td>金额</td><td><span class="goodsAmt"></span></td></tr>
+            <tr><td>描述</td><td><span class="goodsDescription"></span></td></tr>
+            <tr><td>销售数量</td><td><span class="goodsAlreadySale"></span></td></tr>
+            <tr><td>sha3(随机数种子)数</td><td><span class="goodsCiphertextsLength"></span></td></tr>
+            <tr><td>随机数种子数</td><td><span class="goodsPlaintextsLength"></span></td></tr>
+            <tr><td>中奖编号</td><td><span class="goodsWinner"></span></td></tr>
+            <tr><td>中奖地址</td><td><span class="goodsWinnerAddr"></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="page-header">
+        <h1>购买Chance</h1>
+      </div>
+      <div class="well">
+        <form class="form-inline" role="form">
+          <div class="form-group">
+            <label class="sr-only" for="buy_consumer">购买账户</label>
+            <select class="form-control accountsSelect" id="buy_addr">
+                <option>购买账户</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="buy_goodsId">奖品编号</label>
+            <input class="form-control" id="buy_goodsId" placeholder="奖品编号">
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="buy_quantity">奖品数量</label>
+            <input class="form-control" id="buy_quantity" placeholder="奖品数量">
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="buy_plaintext">随机数种子</label>
+            <input class="form-control" id="buy_plaintext" placeholder="随机数种子">
+          </div>
+          <button type="button" class="btn btn-default" onclick="buyChance($('#buy_addr').val(), $('#buy_goodsId').val(), $('#buy_quantity').val(), $('#buy_plaintext').val());">购买</button>
+        </form>
+        <br/>
+        <p>ps. 随机数要求为1-9223372036854775807之间的整数(受到web3.js的toHex函数精度限制)，请避免使用较小的随机数种子，避免被快速查表攻击</p>
+      </div>
+      
+      <div class="page-header">
+        <h1>发送代币</h1>
+      </div>
+      <div class="well">
+        <form class="form-inline" role="form">
+          <div class="form-group">
+            <label class="sr-only" for="transfer_sender">付款账户</label>
+            <select class="form-control accountsSelect" id="transfer_sender">
+                <option>付款账户</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="transfer_receiver">收款账户</label>
+            <select class="form-control accountsSelect" id="transfer_receiver">
+                <option>收款账户</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="transfer_value">金额</label>
+            <input class="form-control" id="transfer_value" placeholder="金额">
+          </div>
+          <button type="button" class="btn btn-default" onclick="transfer($('#transfer_sender').val(), $('#transfer_receiver').val(), $('#transfer_value').val());">发送</button>
+        </form>
+      </div>
+      
+      <div class="page-header">
+        <h1>奖品购买用户查询</h1>
+      </div>
+      <div class="well">
+        <form class="form-inline" role="form">
+          <div class="form-group">
+            <label class="sr-only" for="query_goodsId">奖品编号</label>
+            <input class="form-control" id="query_goodsId" placeholder="奖品编号">
+          </div>
+          <button type="button" class="btn btn-default" onclick="queryConsumers($('#query_goodsId').val());">查询</button>
+        </form>
+        <br/>
+        <table class="table">
+          <thead>
+            <tr><th>编号</th><th>账户</th><th>随机数种子</th><th>sha3(随机数种子)</th></tr>
+          </thead>
+          <tbody id="consumersTbodyDiv">
+          </tbody>
+        </table>
+      </div>
+      
+    </div>
+    
+    
+  </div>
+  
+</body>
+</html>
