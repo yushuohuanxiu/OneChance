@@ -1,7 +1,9 @@
-OneChance 合约测试,geth环境.
+#OneChance合约测试-geth
 
 以下以windows环境为例
+
 启动cmd,并将目录修改为当前目录(geth-test)后
+
 执行以下命令启动geth控制台
   
 1. geth --datadir "./privatenet" init ./privatenet/genesis.json 2>>oneChance.log
