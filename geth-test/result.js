@@ -4,5 +4,5 @@ console.log("goods", topGoodsId, "info:", goods);
 
 // 查询活动用户信息
 for (var i=1; i<=goods[3]; i++) {
-	console.log("consumer", i, "info:", useronechance.user.call(topGoodsId, i));
+    console.log("consumer", i, "info:", useronechance.user.call(topGoodsId, i));
 };
