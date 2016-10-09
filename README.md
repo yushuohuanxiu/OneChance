@@ -14,18 +14,7 @@ OneChanceCoin合约实现了以太坊的数字货币规范，用户可以使用�
 
 用户在OneChance合约中提交购买请求，OneChane合约自动扣减用户相应金额的代币(即用户用活动代币兑换了奖品的中奖Chance)
 
-之所以要使用代币而不是人民币直接购买Chance，是因为合约要处理人民币的支付结果太过复杂，用ChanceCoin代替人民币兑换Chance，简化了OneChance合约的业务逻辑
-
-而ChanceCoin和人民币的兑换则交由主办方的服务网站负责
-    
-    address sponsor-活动举办方，用户可以查询此属性验证活动举办方
-    address oneChance-OneChane活动合约地址，用户可以查询此属性验证活动合约地址
-    mapping balanceOf-用户余额列表，用户可以访问此属性查询余额
-    event Mint-代币发行结果通知，主办方注册此event作为支付结果通知
-    function initOneChance-合约部署后，需要先对OneChance合约地址初始化，初始化方法只有主办方可以调用一次
-    function mint-发行代币方法只有主办方可以调用
-    function consume-扣减代币方法只有OneChance合约可以调用
-    function transfer-发送代币方法，任何用户可以调用该方法将代币发送给其它以太坊账户
+之所以要使用代币而不是人民币直接购买Chance，是因为合约要处理人民币的支付结果太过复杂，用ChanceCoin代替人民币兑换Chance，简化了OneChance合约的业务逻辑，而ChanceCoin和人民币的兑换则交由主办方的服务网站负责
     
 ##OneChance-一元夺宝活动
 OneChance合约实现了一元夺宝活动的奖品发布、用户购买奖品中奖Chance、自动计算中奖用户功能
@@ -61,16 +50,6 @@ OneChance合约实现了一元夺宝活动的奖品发布、用户购买奖品�
 后续优化可以考虑引入慢hash算法、增大随机数范围(更换为更大长度的字符串或者byte数组)，以避免快速查表攻击等
 
 合约不记录用户已购买过的商品(遍历所有商品的购买用户列表也可以查到)，请用户自行记录自己的购买记录(可以考虑在提供给用户使用的本地应用或web页面中实现)
-    
-    address sponsor-活动举办方，用户可以查询此属性验证活动举办方
-    OneChanceCoin oneChanceCoin-代币合约地址，用户可以查询此属性验证代币合约地址
-    topGoodsId-最新奖品id，用户可以查询该属性值，然后循环-1遍历查询所有奖品信息
-    event NotifySubmitPlaintext-用户在购买Chance前必须先注册此event，以在奖品Chance售罄后接受随机数种子提交通知
-    function postGoods-发布奖品，只有主办方可以调用此方法
-    function buyChance-购买奖品Chance
-    function submitPlaintext-随机数种子提交方法
-    function goods-查询奖品信息，包括奖品名称、金额、描述、已出售Chance数量、已提交sha3(随机数种子)、已提交随机数种子数、中奖用户id
-    function user-使用奖品id与用户id查询购买用户信息
 	
 ##AddressCompress-地址压缩合约
 该合约并不仅限于为OneChance合约服务，可以作为基础设施为全网用户(包括合约)提供20字节address转为4字节uid的地址压缩服务
@@ -78,10 +57,6 @@ OneChance合约实现了一元夺宝活动的奖品发布、用户购买奖品�
 类似于一元夺宝合约，合约场景需要存储大量重复地址数据时(每个奖品都要存储一个商品价格长度的地址列表，而且重复地址的频率非常高，高价值奖品一般用户一次买多个Chance)
 
 使用地址压缩，对于重复地址数据，只需要存储一份20字节address与4字节uid的双向映射，然后存储4字节uid即可，可以节省相当的存储空间
-	
-	mapping uidOf-address到uid的映射，可以使用address查询对应uid
-	mapping addrOf-uid到address的映射，可以使用uid查询对应address
-	function regist-地址注册，提交注册地址，返回对应的uid
 
 ##合约演示
 请参见html-test和geth-test目录下的README文件
